@@ -41,25 +41,17 @@ def counts(sudoku_state):
 
     return rows, cols, squares
 
-def is_consistent(*selections):
-    return not any(
-        digit.isdigit() and count > 1
-        for selection in selections
-        for digit, count in selection.iteritems()
+def dependencies(rows, cols, squares):
+    return dict(
+        ((r, c),
+         frozenset('123456789') -
+         set(rows[r]) - set(cols[c]) - set(squares[3 * (r // 3) + (c // 3)]))
+        for r in xrange(9) for c in xrange(9)
     )
 
-def dependencies(sudoku_state):
-    rows, cols, squares = counts(sudoku_state)
-    open_counts = {}
-
-    for r in xrange(9):
-        for c in xrange(9):
-            square = 3 * (r // 3) + (c // 3)
-            open_counts[(r, c)] = (
-                rows[r][' '] + cols[c][' '] + squares[square][' ']
-            )
-
-    return open_counts
+def is_consistent(sudoku_state, choices):
+    return not any(not S and not sudoku_state[r][c].isdigit()
+                   for (r, c), S in choices.iteritems())
 
 def solve(sudoku_state):
     global total_calls
@@ -67,19 +59,19 @@ def solve(sudoku_state):
 
     rows, cols, squares = counts(sudoku_state)
 
-    if not is_consistent(rows, cols, squares):
+    open_counts = dependencies(rows, cols, squares)
+    if not is_consistent(sudoku_state, open_counts):
         return
-
-    open_counts = dependencies(sudoku_state)
-    if all(x == 0 for x in open_counts.itervalues()):
+    if all(not x for x in open_counts.itervalues()):
         return sudoku_state
 
-    score, (r, c) = min(
-        (score, (r, c)) for (r, c), score in open_counts.iteritems()
-        if score > 0 and not sudoku_state[r][c].isdigit()
+    score, choices, (r, c) = min(
+        (len(choices), choices, (r, c))
+        for (r, c), choices in open_counts.iteritems()
+        if choices and not sudoku_state[r][c].isdigit()
     )
 
-    for digit in '123456789':
+    for digit in choices:
         result = solve(apply_choice(sudoku_state, r, c, digit))
 
         if result is not None:
