@@ -41,25 +41,12 @@ def counts(sudoku_state):
 
     return rows, cols, squares
 
-def is_consistent(sudoku_state):
-    rows, cols, squares = counts(sudoku_state)
-
-    for row in rows.itervalues():
-        for digit, count in row.iteritems():
-            if digit.isdigit() and count > 1:
-                return False
-
-    for col in cols.itervalues():
-        for digit, count in col.iteritems():
-            if digit.isdigit() and count > 1:
-                return False
-
-    for square in squares.itervalues():
-        for digit, count in square.iteritems():
-            if digit.isdigit() and count > 1:
-                return False
-
-    return True
+def is_consistent(*selections):
+    return not any(
+        digit.isdigit() and count > 1
+        for selection in selections
+        for digit, count in selection.iteritems()
+    )
 
 def dependencies(sudoku_state):
     rows, cols, squares = counts(sudoku_state)
@@ -78,7 +65,9 @@ def solve(sudoku_state):
     global total_calls
     total_calls += 1
 
-    if not is_consistent(sudoku_state):
+    rows, cols, squares = counts(sudoku_state)
+
+    if not is_consistent(rows, cols, squares):
         return
 
     open_counts = dependencies(sudoku_state)
