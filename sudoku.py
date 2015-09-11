@@ -6,52 +6,53 @@ total_calls = 0
 
 def unpack(sudoku_str):
     return tuple(
-        tuple(char if char.isdigit() else ' ' for char in line[:9])
-        for line in sudoku_str.splitlines()[:9]
+        (r, c, 3 * (r // 3) + (c // 3), char)
+        for r, line in enumerate(sudoku_str.splitlines()[:9])
+        for c, char in enumerate(line[:9])
+        if char.isdigit()
     )
 
 def pack(sudoku_state):
-    return '\n'.join(''.join(row) for row in sudoku_state)
+    state = {
+        (r, c): digit
+        for r, c, square, digit in sudoku_state
+    }
 
-def apply_choice(sudoku_state, row, col, digit):
-    return tuple(
-        tuple(
-            digit if (r, c) == (row, col) else state_digit
-            for c, state_digit in enumerate(state_row)
-        )
-        for r, state_row in enumerate(sudoku_state)
+    return '\n'.join(
+        ''.join(state.get((r, c), ' ') for c in xrange(9))
+        for r in xrange(9)
     )
 
 def counts(sudoku_state):
     rows, cols, squares = {}, {}, {}
 
-    for r, row in enumerate(sudoku_state):
-        rows[r] = defaultdict(int)
-        for c, digit in enumerate(row):
-            if not digit.isdigit():
-                digit = ' '
+    for r, c, square, digit in sudoku_state:
+        rows.setdefault(r, defaultdict(int))
+        cols.setdefault(c, defaultdict(int))
+        squares.setdefault(square, defaultdict(int))
 
-            square = 3 * (r // 3) + (c // 3)
-            cols.setdefault(c, defaultdict(int))
-            squares.setdefault(square, defaultdict(int))
-
-            rows[r][digit] += 1
-            cols[c][digit] += 1
-            squares[square][digit] += 1
+        rows[r][digit] += 1
+        cols[c][digit] += 1
+        squares[square][digit] += 1
 
     return rows, cols, squares
 
-def dependencies(rows, cols, squares):
-    return dict(
-        ((r, c),
-         frozenset('123456789') -
-         set(rows[r]) - set(cols[c]) - set(squares[3 * (r // 3) + (c // 3)]))
+def dependencies(sudoku_state, rows, cols, squares):
+    deps = {
+        (r, c): (frozenset('123456789')
+                 - set(rows.get(r, ()))
+                 - set(cols.get(c, ()))
+                 - set(squares.get(3 * (r // 3) + (c // 3), ())))
         for r in xrange(9) for c in xrange(9)
-    )
+    }
+
+    for r, c, square, digit in sudoku_state:
+        del deps[(r, c)]
+
+    return deps
 
 def is_consistent(sudoku_state, choices):
-    return not any(not S and not sudoku_state[r][c].isdigit()
-                   for (r, c), S in choices.iteritems())
+    return all(S for (r, c), S in choices.iteritems())
 
 def solve(sudoku_state):
     global total_calls
@@ -59,20 +60,19 @@ def solve(sudoku_state):
 
     rows, cols, squares = counts(sudoku_state)
 
-    open_counts = dependencies(rows, cols, squares)
+    open_counts = dependencies(sudoku_state, rows, cols, squares)
     if not is_consistent(sudoku_state, open_counts):
         return
-    if all(not x for x in open_counts.itervalues()):
+    if not open_counts:
         return sudoku_state
 
     score, choices, (r, c) = min(
         (len(choices), choices, (r, c))
         for (r, c), choices in open_counts.iteritems()
-        if choices and not sudoku_state[r][c].isdigit()
     )
 
     for digit in choices:
-        result = solve(apply_choice(sudoku_state, r, c, digit))
+        result = solve(sudoku_state + ((r, c, 3 * (r // 3) + (c // 3), digit),))
 
         if result is not None:
             return result
